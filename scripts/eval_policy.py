@@ -14,7 +14,8 @@ import sys
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
-
+import sys
+sys.path.append('/home/harshit/work/rllab')
 from rllab.sampler.utils import rollout
 
 from aa_simulation.envs.base_env import VehicleEnv
@@ -99,7 +100,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('file', type=str,
                         help='Path to the snapshot file')
-    parser.add_argument('--max_path_length', type=int, default=100,
+    parser.add_argument('--max_path_length', type=int, default=250,
                         help='Max length of rollout')
     parser.add_argument('--seed', type=int, default=9, help='Random seed')
     parser.add_argument('--speedup', type=float, default=100000,
@@ -141,11 +142,14 @@ def main():
     skip = args.skip
     policy = data['policy']
     env = data['env']
-    env._dt = 0.035                 # Set dt to empirically measured dt
+    env._dt = 0.035                # Set dt to empirically measured dt
     np.random.seed(args.seed)
     show_plots = args.show_plots
     if show_plots:
         plt.ion()
+
+    print("num_paths : {}".format(args.num_paths))
+    print("skip : {}".format(skip))
 
     for run in range(args.num_paths):
 
@@ -172,6 +176,8 @@ def main():
         means_slip.append(path['env_infos']['kappa'][skip:].mean())
         means_dist.append(path['env_infos']['dist'][skip:].mean())
         means_vel.append(path['env_infos']['vel'][skip:].mean())
+        print("Mean abs vel: {}".format(np.mean(np.abs(path['env_infos']['vel'][skip:]))))
+        print("Mean abs distance: {}".format(np.mean(np.abs(path['env_infos']['dist'][skip:]))))
 
     # Print statistics over multiple runs
     if not args.profile_code:
@@ -181,6 +187,7 @@ def main():
     means_slip = np.array(means_slip)
     means_dist = np.array(means_dist)
     means_vel = np.array(means_vel)
+    
     print('Averaged statistics over %d rollout(s):' % args.num_paths)
     print('\tMean Commanded Speed:\t%.5f +/- %.5f'
             % (means_speed.mean(), means_speed.std()))

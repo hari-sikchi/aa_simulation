@@ -15,6 +15,8 @@ from scipy.integrate import solve_ivp
 from aa_simulation.misc.utils import normalize_angle
 
 
+prev_steer = 0
+
 class DynamicBicycleModel(object):
     """
     Vehicle modeled as a three degrees of freedom dynamic bicycle model.
@@ -25,7 +27,10 @@ class DynamicBicycleModel(object):
         Initialize model parameters from dictionary format to instance
         variables.
         """
+
+        self.prevsteer = 0
         # Vehicle parameters
+
         self.m = params['m']                # Mass
         self.L_f = params['L_f']            # CoG to front axle length
         self.L_r = params['L_r']            # CoG to rear axle length
@@ -54,10 +59,12 @@ class DynamicBicycleModel(object):
         X_new = solve_ivp(
             fun=(lambda t, X: self._dynamics(X, t, U)),
             t_span=t, y0=X, atol=1e-5)
+        X_new[6]=U[1]
         return X_new.y[:,-1]
 
 
     def _dynamics(self, X, t, U):
+        global prev_steer
         """
         Use dynamics model to compute X_dot from X, U.
         """
@@ -67,8 +74,16 @@ class DynamicBicycleModel(object):
         v_x = X[3]
         v_y = X[4]
         yaw_rate = X[5]
+        steer = X[6]
+
         cmd_vx = U[0]
-        delta = U[1]
+        action_steer = U[1]
+        delta = action_steer
+        # print(delta,pos_yaw)
+        # delta = prev_steer + (delta-prev_steer)/100
+        
+        prev_steer = delta
+        # steering_speed = 10
 
         # Tire slip angle (zero when stationary)
         if np.abs(v_x) < 0.01 and np.abs(v_y) < 0.01:
@@ -98,13 +113,14 @@ class DynamicBicycleModel(object):
         pos_x_dot = v*np.cos(beta+pos_yaw)
         pos_y_dot = v*np.sin(beta+pos_yaw)
 
-        X_dot = np.zeros(6)
+        X_dot = np.zeros(7)
         X_dot[0] = pos_x_dot
         X_dot[1] = pos_y_dot
         X_dot[2] = yaw_rate
         X_dot[3] = v_x_dot
         X_dot[4] = v_y_dot
         X_dot[5] = yaw_rate_dot
+        X_dot[6] = ((action_steer-steer)/np.abs(action_steer-steer))*0.3
 
         return X_dot
 
@@ -143,6 +159,7 @@ class LinearTireModel(DynamicBicycleModel):
     """
 
     def __init__(self, params, mu_s, mu_k):
+        
         super(LinearTireModel, self).__init__(params, mu_s, mu_k)
 
 
@@ -164,6 +181,7 @@ class BrushTireModel(DynamicBicycleModel):
     """
 
     def __init__(self, params, mu_s, mu_k):
+        # super().__init__(params,mu_s,mu_k)
         super(BrushTireModel, self).__init__(params, mu_s, mu_k)
 
 

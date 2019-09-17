@@ -7,13 +7,15 @@ Environment for training a local planner to move in a straight line.
 """
 
 import numpy as np
+import time
 
 from rllab.spaces import Box
 
 from aa_simulation.envs.base_env import VehicleEnv
-from aa_simulation.misc.utils import normalize_angle
+from aa_simulation.misc.utils import normalize_angle,normalize_steer
 
-
+# _old_action = None
+_prev_x = None
 class StraightEnv(VehicleEnv):
     """
     Simulation environment for an RC car following a straight
@@ -29,10 +31,17 @@ class StraightEnv(VehicleEnv):
             robot_type='RCCar',
             mu_s=1.37,
             mu_k=1.96
+           
     ):
         """
         Initialize super class parameters, obstacles and radius.
         """
+        # self.pending_actions = []
+        # # action drop probablity from the pending action_queue
+        # self.action_drop_prob = 0.2
+        # self.old_time = time.time()
+        # self.old_action = None
+
         super(StraightEnv, self).__init__(
             target_velocity=target_velocity,
             dt=dt,
@@ -42,7 +51,7 @@ class StraightEnv(VehicleEnv):
             mu_k=mu_k
         )
         self.robot_type = robot_type
-
+        
         # Reward function parameters
         self._lambda1 = 0.25
 
@@ -52,7 +61,7 @@ class StraightEnv(VehicleEnv):
         """
         Define the shape of input vector to the neural network.
         """
-        return Box(low=-np.inf, high=np.inf, shape=(5,))
+        return Box(low=-np.inf, high=np.inf, shape=(6,))
 
 
     @property
@@ -60,6 +69,9 @@ class StraightEnv(VehicleEnv):
         """
         Get initial state of car when simulation is reset.
         """
+        global _prev_x
+        _prev_x=None
+        steer=0
         # Randomly initialize state for better learning
         if self.robot_type == 'RCCar':
             y = np.random.uniform(-0.25, 0.25)
@@ -67,21 +79,24 @@ class StraightEnv(VehicleEnv):
             x_dot = np.random.uniform(0, 1.3)
             y_dot = np.random.uniform(-0.6, 0.6)
             yaw_dot = np.random.uniform(-2.0, 2.0)
+            steer = 0
         elif self.robot_type == 'MRZR':
             y = np.random.uniform(-0.25, 0.25)
             yaw = np.random.uniform(-np.pi/3, np.pi/3)
             x_dot = np.random.uniform(0, 2.0)
             y_dot = np.random.uniform(-0.6, 0.6)
             yaw_dot = np.random.uniform(-0.3, 0.3)
+            steer = 0
         else:
             raise ValueError('Unrecognized robot type')
 
-        state = np.zeros(6)
+        state = np.zeros(7)
         state[1] = y
         state[2] = yaw
         state[3] = x_dot
         state[4] = y_dot
         state[5] = yaw_dot
+        state[6] = steer
         return state
 
 
@@ -89,12 +104,28 @@ class StraightEnv(VehicleEnv):
         """
         Reward function definition.
         """
-        _, y, _, x_dot, y_dot, _ = state
+        global _prev_x
+        x, y, _, x_dot, y_dot, _,steer = state
         velocity = np.sqrt(x_dot**2 + y_dot**2)
         distance = y
-
+        if _prev_x is None:
+            _prev_x=x
+        
+        # penalty for action divergence
+        alpha = 1
+        div_action =  - np.sum(np.square(action[1] - steer))  
+        # print(action[1],steer)
+        forward_motion = np.maximum(x-_prev_x,0)
+        beta = 5
         reward = -np.absolute(distance)
         reward -= self._lambda1 * (velocity - self.target_velocity)**2
+        reward +=beta * forward_motion
+        # reward+=alpha*div_action
+        # print(beta * forward_motion,np.absolute(distance),self._lambda1 * (velocity - self.target_velocity)**2,alpha*div_action)
+        #   print(reward)
+        # _old_action=action
+        _prev_x=x
+
 
         info = {}
         info['dist'] = distance
@@ -115,7 +146,7 @@ class StraightEnv(VehicleEnv):
         :param y0: y-value of start of line to follow
         :param angle: Angle of line to follow
         """
-        x, y, yaw, x_dot, y_dot, yaw_dot = state
+        x, y, yaw, x_dot, y_dot, yaw_dot,steer= state
         angle = normalize_angle(angle)
 
         current_angle = np.arctan2((y - y0), (x - x0))
@@ -126,14 +157,15 @@ class StraightEnv(VehicleEnv):
         new_y = dist * np.sin(projected_angle)
         new_yaw = normalize_angle(yaw - angle)
 
-        return np.array([new_x, new_y, new_yaw, x_dot, y_dot, yaw_dot])
+        return np.array([new_x, new_y, new_yaw, x_dot, y_dot, yaw_dot,steer])
 
 
     def state_to_observation(self, state):
         """
         Prepare state to be read as input to neural network.
         """
-        _, y, yaw, x_dot, y_dot, yaw_dot = state
+        _, y, yaw, x_dot, y_dot, yaw_dot,steer = state
         yaw = normalize_angle(yaw)
-        return np.array([y, yaw, x_dot, y_dot, yaw_dot])
+        steer = normalize_steer(steer)
+        return np.array([y, yaw, x_dot, y_dot, yaw_dot,steer])
 

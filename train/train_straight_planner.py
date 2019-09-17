@@ -209,12 +209,12 @@ def main():
     # Configurable parameters
     #   Options for model_type: 'BrushTireModel', 'LinearTireModel'
     #   Options for robot_type: 'MRZR', 'RCCar'
-    seeds = [100, 200]
+    seeds = [100]
     robot_type = 'RCCar'
     use_ros = False
     vg.add('seed', seeds)
     vg.add('target_velocity', [1.0])
-    vg.add('dt', [0.1])
+    vg.add('dt', [0.02])
     vg.add('model_type', ['BrushTireModel'])
     vg.add('robot_type', [robot_type])
     vg.add('mu_s', [1.37])
@@ -224,6 +224,8 @@ def main():
     print('Number of Configurations: ', len(vg.variants()))
 
     # Run each experiment variant
+    # for vv in vg.variants():
+    #     run_task(vv)
     for vv in vg.variants():
         run_experiment_lite(
             stub_method_call=run_task,

@@ -15,7 +15,7 @@ import numpy as np
 
 from rllab.misc import tensor_utils
 
-from aa_simulation.envs.straight_env import StraightEnv
+from aa_simulation.envs.straight.straight_env import StraightEnv
 from aa_simulation.misc.utils import normalize_angle
 
 

@@ -7,16 +7,21 @@ Simulation environment using vehicle model defined in model.py.
 """
 
 import yaml
+import time
 
 import numpy as np
 
 from rllab.envs.base import Env, Step
 from rllab.misc import logger
 from rllab.spaces import Box
-
 from aa_simulation.envs.model.model import BrushTireModel, LinearTireModel
 from aa_simulation.envs.renderer import _Renderer
 
+
+_pending_actions=[]
+_action_drop_prob=0.2
+_old_time=time.time()
+_old_action = None
 
 class VehicleEnv(Env):
     """
@@ -36,8 +41,28 @@ class VehicleEnv(Env):
             model_type='BrushTireModel',
             robot_type='RCCar',
             mu_s=1.37,
-            mu_k=1.96
+            mu_k=1.96,
+            _pending_actions =[]
+
     ):
+
+        # Time between each simulation iteration
+        # Note: dt is measured to be 0.035, but we train with longer dt
+        #       for more stability in commanded actions.
+        self._dt = dt
+
+        # create a list of pending actions to deliver to the 
+        # simulator at delayed time steps
+        self._pending_actions=_pending_actions
+        # action drop probablity from the pending action_queue
+        self._action_drop_prob = 0.2
+        self._old_time = time.time()
+        self._old_action = None
+
+        # Instantiates object handling simulation renderings
+        self._renderer = None
+
+
         """
         Initialize environment parameters.
         """
@@ -61,19 +86,10 @@ class VehicleEnv(Env):
             self._model = LinearTireModel(self._params, mu_s, mu_k)
         else:
             raise ValueError('Invalid vehicle model type')
-
-        # Time between each simulation iteration
-        # Note: dt is measured to be 0.035, but we train with longer dt
-        #       for more stability in commanded actions.
-        self._dt = dt
-
-        # Instantiates object handling simulation renderings
-        self._renderer = None
-
-
+            
     @property
     def observation_space(self):
-        return Box(low=-np.inf, high=np.inf, shape=(6,))
+        return Box(low=-np.inf, high=np.inf, shape=(7,))
 
 
     @property
@@ -110,6 +126,29 @@ class VehicleEnv(Env):
         Move one iteration forward in simulation.
         """
         # Place limits on action based on mechanical constraints
+        global _pending_actions, _old_action,_pending_actions,_old_time
+
+
+
+        # mu,sigma = 0.002,0.002
+        # random_delay =np.abs(np.random.normal(mu,sigma)) 
+
+        # _pending_actions.append(action)
+        
+        # # print(_pending_actions)
+        # if(_old_action is None):
+        #     _old_action=action
+
+        # action = _old_action
+        # new_time = time.time()
+        # if(new_time - _old_time>=random_delay):
+        #     action = _pending_actions[0]
+        #     _old_time=new_time
+        #     _old_action=action
+        #     _pending_actions.remove(_pending_actions[0])
+
+
+
         action_min = [VehicleEnv._MIN_VELOCITY, -VehicleEnv._MAX_STEER_ANGLE]
         action_max = [VehicleEnv._MAX_VELOCITY, VehicleEnv._MAX_STEER_ANGLE]
         action = np.clip(action, a_min=action_min, a_max=action_max)
@@ -119,7 +158,10 @@ class VehicleEnv(Env):
                 self._dt)
         self._state = nextstate
         reward, info = self.get_reward(nextstate, action)
-        observation = self.state_to_observation(nextstate)
+        observation = self.state_to_observation(nextstate) 
+        # np.random.seed(np.random.randint(0,10))
+        noise =  np.random.multivariate_normal(np.zeros(observation.shape),0.05*np.eye(observation.shape[0],observation.shape[0]))
+        # observation+=noise
         return Step(observation=observation, reward=reward, done=False,
                 dist=info['dist'], vel=info['vel'], kappa=self._model.kappa)
 

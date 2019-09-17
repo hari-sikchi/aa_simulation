@@ -14,6 +14,7 @@ from rllab.spaces import Box
 from aa_simulation.envs.base_env import VehicleEnv
 from aa_simulation.misc.utils import normalize_angle
 
+_old_action = None
 
 class CircleEnv(VehicleEnv):
     """
@@ -62,6 +63,8 @@ class CircleEnv(VehicleEnv):
         Get initial state of car when simulation is reset.
         """
         # Compute domain randomized variables
+        global _prev_x,_old_action
+        _old_action=None
         x = np.random.uniform(-0.25, 0.25) - self.radius
         yaw = np.random.uniform(-np.pi/3, np.pi/3) + np.deg2rad(270)
         x_dot = np.random.uniform(0, 2*self.target_velocity)
@@ -81,6 +84,7 @@ class CircleEnv(VehicleEnv):
         """
         Reward function definition.
         """
+        global _old_action
         observation = self.state_to_observation(state)
         r = self.radius
         x, y, _, x_dot, y_dot, _ = state
@@ -88,9 +92,14 @@ class CircleEnv(VehicleEnv):
         velocity = np.sqrt(x_dot**2 + y_dot**2)
         distance = dx
 
+        if(_old_action is None):
+            _old_action=action
+        div_action =  - np.sum(np.square(action[1] - _old_action[1]))
+        alpha = 0.5
         reward = -np.abs(distance)
         reward -= self._lambda1 * (velocity - self.target_velocity)**2
         reward -= self._lambda2 * max(0, abs(theta) - np.pi/2)**2
+        reward+=alpha*div_action
 
         info = {}
         info['dist'] = distance
