@@ -19,6 +19,9 @@ sys.path.append('/home/harshit/work/rllab')
 from rllab.sampler.utils import rollout
 
 from aa_simulation.envs.base_env import VehicleEnv
+import numpy as np
+from rllab.misc import tensor_utils
+import time
 
 # Toggle option for displaying plots
 show_plots = True
@@ -29,7 +32,6 @@ means_steer = []
 means_slip = []
 means_dist = []
 means_vel = []
-means_rew = []
 
 
 def profile_code(profiler):
@@ -101,7 +103,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('file', type=str,
                         help='Path to the snapshot file')
-    parser.add_argument('--max_path_length', type=int, default=250,
+    parser.add_argument('--max_path_length', type=int, default=5,
                         help='Max length of rollout')
     parser.add_argument('--seed', type=int, default=9, help='Random seed')
     parser.add_argument('--speedup', type=float, default=100000,
@@ -129,58 +131,156 @@ def parse_arguments():
     return args
 
 
+
+def rollout_fixed_distance(env, agent, max_path_length=np.inf, animated=False, speedup=1,
+            always_return_paths=False):
+    observations = []
+    actions = []
+    rewards = []
+    agent_infos = []
+    env_infos = []
+    o = env.reset()
+    agent.reset()
+    path_length = 0
+    if animated:
+        env.render()
+    while 1:
+        a, agent_info = agent.get_action(o)
+        next_o, r, d, env_info = env.step(a,max_path_length=max_path_length)
+        observations.append(env.observation_space.flatten(o))
+        rewards.append(r)
+        actions.append(env.action_space.flatten(a))
+        agent_infos.append(agent_info)
+        env_infos.append(env_info)
+        path_length += 1
+        if d:
+            break
+        o = next_o
+        if animated:
+            env.render()
+            timestep = 0.05
+            time.sleep(timestep / speedup)
+    if animated and not always_return_paths:
+        return
+
+    return dict(
+        observations=tensor_utils.stack_tensor_list(observations),
+        actions=tensor_utils.stack_tensor_list(actions),
+        rewards=tensor_utils.stack_tensor_list(rewards),
+        agent_infos=tensor_utils.stack_tensor_dict_list(agent_infos),
+        env_infos=tensor_utils.stack_tensor_dict_list(env_infos),
+    )
+
+
 def main():
     global show_plots
     global means_speed
     global means_steer
     global means_slip
     global means_dist
-    global means_vel,means_rew
+    global means_vel
 
     args = parse_arguments()
-    profiler = cProfile.Profile()
+#     profiler = cProfile.Profile()
     data = joblib.load(args.file)
     skip = args.skip
     policy = data['policy']
     env = data['env']
-    env._dt = 0.02              # Set dt to empirically measured dt
+    env._dt = 0.035                # Set dt to empirically measured dt
     np.random.seed(args.seed)
-    show_plots = args.show_plots
-    if show_plots:
-        plt.ion()
+#     show_plots = args.show_plots
+#     if show_plots:
+#         plt.ion()
 
     print("num_paths : {}".format(args.num_paths))
     print("skip : {}".format(skip))
-    std_steer = []
-    for run in range(args.num_paths):
+    dt_mean_steer = []
+    dt_std_steer = []
+    dt_list = []
+    dt_mean_reward = []
+    dt_mean_abs_vel = []
+    for dt in np.arange(0.001,0.08,0.001):
+            print(dt)
+            env._dt=dt
+            mean_steer = []
+            std_steer = []
+            mean_rewards = []
+            mean_abs_vel = []
+            for run in range(args.num_paths):
+                # profiler.enable()
+                path = rollout_fixed_distance(env, policy, max_path_length=3,
+                                animated=args.render, speedup=args.speedup,
+                                always_return_paths=True)
 
-        profiler.enable()
-        path = rollout(env, policy, max_path_length=args.max_path_length,
-                            animated=args.render, speedup=args.speedup,
-                            always_return_paths=True)
-        profiler.disable()
-        if args.profile_code:
-            profile_code(profiler)
+                # path = rollout(env, policy, max_path_length=250,
+                #                 animated=args.render, speedup=args.speedup,
+                #                 always_return_paths=True)
 
-        # Analyze rollout
-        actions = path['actions']
-        # plot_curve(actions[:, 0][skip:], 'Commanded Speed', 'm/s')
-        # plot_curve(actions[:, 1][skip:], 'Commanded Steering Angle', 'rad')
-        # plot_curve(path['env_infos']['kappa'][skip:], 'Wheel Slip', 'kappa')
-        # plot_curve(path['env_infos']['dist'][skip:], 'Distance', 'm')
-        # plot_curve(path['env_infos']['vel'][skip:], 'Velocity', 'm/s')
-        # plot_distribution(path['env_infos']['dist'][skip:], 'Distance', 'm')
-        # plot_distribution(path['env_infos']['vel'][skip:], 'Velocity', 'm/s')
+                # profiler.disable()
+                # if args.profile_code:
+                # profile_code(profiler)
 
-        means_speed.append(actions[:, 0][skip:].mean())
-        means_steer.append(actions[:, 1][skip:].mean())
-        std_steer.append(actions[:, 1][skip:].std())
-        means_slip.append(path['env_infos']['kappa'][skip:].mean())
-        means_dist.append(path['env_infos']['dist'][skip:].mean())
-        means_vel.append(path['env_infos']['vel'][skip:].mean())
-        
-        means_rew.append(path['rewards'][skip:].mean())
-        print("Mean distance: {}".format(np.mean(np.abs(path['env_infos']['dist'][skip:]))))
+                # Analyze rollout
+                actions = path['actions']
+                # plot_curve(actions[:, 0][skip:], 'Commanded Speed', 'm/s')
+                # plot_curve(actions[:, 1][skip:], 'Commanded Steering Angle', 'rad')
+                # plot_curve(path['env_infos']['kappa'][skip:], 'Wheel Slip', 'kappa')
+                # plot_curve(path['env_infos']['dist'][skip:], 'Distance', 'm')
+                # plot_curve(path['env_infos']['vel'][skip:], 'Velocity', 'm/s')
+                # plot_distribution(path['env_infos']['dist'][skip:], 'Distance', 'm')
+                # plot_distribution(path['env_infos']['vel'][skip:], 'Velocity', 'm/s')
+
+                means_speed.append(actions[:, 0][skip:].mean())
+                #print(actions)
+                means_steer.append(actions[:, 1][skip:].mean())
+                mean_steer.append(actions[:, 1][skip:].mean())
+                std_steer.append(actions[:, 1][skip:].std())
+                means_slip.append(path['env_infos']['kappa'][skip:].mean())
+                means_dist.append(path['env_infos']['dist'][skip:].mean())
+                means_vel.append(path['env_infos']['vel'][skip:].mean())
+                mean_rewards.append(path['rewards'].mean())
+                mean_abs_vel.append(np.abs(path['env_infos']['vel'][skip:]-1).mean())
+                #print("Mean distance: {}".format(np.mean(np.abs(path['env_infos']['dist'][skip:]))))
+            dt_mean_steer.append(sum(mean_steer)/len(mean_steer))
+            dt_mean_reward.append(sum(mean_rewards)/len(mean_rewards))
+            dt_mean_abs_vel.append(sum(mean_abs_vel)/len(mean_abs_vel))
+
+            #print(std_steer)
+            dt_std_steer.append(sum(std_steer)/len(std_steer))
+            print(sum(std_steer)/len(std_steer))
+            dt_list.append(dt)
+    
+    print(dt_mean_steer)
+    print(dt_std_steer)
+    plt.figure()
+    # plt.subplot(211)
+    # plt.plot(dt_list, dt_mean_steer, 'k')
+    # plt.subplot(212)
+    plt.xlabel('dt')
+    plt.ylabel('Steer std_dev')  
+    plt.plot(dt_list, dt_std_steer, 'k')
+    plt.show()
+
+
+    plt.figure()
+    # plt.subplot(211)
+    # plt.plot(dt_list, dt_mean_steer, 'k')
+    # plt.subplot(212)
+    plt.xlabel('dt')
+    plt.ylabel('Mean reward')  
+    plt.plot(dt_list, dt_mean_reward, 'k')
+    plt.show()
+
+
+    plt.figure()
+    # plt.subplot(211)
+    # plt.plot(dt_list, dt_mean_steer, 'k')
+    # plt.subplot(212)
+    plt.xlabel('dt')
+    plt.ylabel('Mean abs vel error')  
+    plt.plot(dt_list, dt_mean_abs_vel, 'k')
+    plt.show()
+
 
     # Print statistics over multiple runs
     if not args.profile_code:
@@ -190,14 +290,10 @@ def main():
     means_slip = np.array(means_slip)
     means_dist = np.array(means_dist)
     means_vel = np.array(means_vel)
-    means_rew = np.array(means_rew)
-
-    std_steer = np.array(std_steer)
+    
     print('Averaged statistics over %d rollout(s):' % args.num_paths)
     print('\tMean Commanded Speed:\t%.5f +/- %.5f'
             % (means_speed.mean(), means_speed.std()))
-    print('\tMean Std Steer:\t%.5f +/- %.5f'
-            % (std_steer.mean(), std_steer.std()))
     print('\tMean Commanded Steer:\t%.5f +/- %.5f'
             % (means_steer.mean(), means_steer.std()))
     print('\tMean Slip:\t\t%.5f +/- %.5f'
@@ -206,16 +302,13 @@ def main():
             % (means_dist.mean(), means_dist.std()))
     print('\tMean Velocity:\t\t%.5f +/- %.5f'
             % (means_vel.mean(), means_vel.std()))
-    print('\tMean reward:\t\t%.5f +/- %.5f'
-            % (means_rew.mean(), means_rew.std()))
-
     print()
 
-    plt.show()
+#    plt.show()
 
     # Block until key is pressed
-    sys.stdout.write("Press <enter> to continue: ")
-    input()
+#     sys.stdout.write("Press <enter> to continue: ")
+#     input()
 
 
 if __name__ == "__main__":

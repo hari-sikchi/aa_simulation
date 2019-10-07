@@ -18,15 +18,6 @@ def normalize_angle(angle):
         angle -= 2*np.pi
     return angle
 
-def normalize_steer(angle):
-    """
-    Normalize angle from [-pi, pi].
-    """
-    angle = angle % (np.pi/3)
-    if (angle >= np.pi/6):
-        angle -= np.pi/3
-    return angle
-
 
 def rotate_state(state, angle):
     """

@@ -55,11 +55,11 @@ class DynamicBicycleModel(object):
         """
         Update state after some timestep.
         """
+        # print(dt)
         t = np.array([0, dt])
         X_new = solve_ivp(
             fun=(lambda t, X: self._dynamics(X, t, U)),
-            t_span=t, y0=X, atol=1e-5)
-        X_new[6]=U[1]
+            t_span=t, y0=X, atol=1e-1)
         return X_new.y[:,-1]
 
 
@@ -74,11 +74,8 @@ class DynamicBicycleModel(object):
         v_x = X[3]
         v_y = X[4]
         yaw_rate = X[5]
-        steer = X[6]
-
         cmd_vx = U[0]
-        action_steer = U[1]
-        delta = action_steer
+        delta = U[1]
         # print(delta,pos_yaw)
         # delta = prev_steer + (delta-prev_steer)/100
         
@@ -106,6 +103,7 @@ class DynamicBicycleModel(object):
         yaw_rate_dot = T_z/self.I_z - 0.02*yaw_rate
         v_x_dot = ma_x/self.m + yaw_rate*v_y - 0.025*v_x
         v_y_dot = ma_y/self.m - yaw_rate*v_x - 0.025*v_y
+        # print("Yaw: {}, Yaw rate: {}, Yaw rate dot:{}".format(pos_yaw,yaw_rate,yaw_rate_dot))
 
         # Translate to inertial frame
         v = np.sqrt(v_x**2 + v_y**2)
@@ -113,14 +111,13 @@ class DynamicBicycleModel(object):
         pos_x_dot = v*np.cos(beta+pos_yaw)
         pos_y_dot = v*np.sin(beta+pos_yaw)
 
-        X_dot = np.zeros(7)
+        X_dot = np.zeros(6)
         X_dot[0] = pos_x_dot
         X_dot[1] = pos_y_dot
         X_dot[2] = yaw_rate
         X_dot[3] = v_x_dot
         X_dot[4] = v_y_dot
         X_dot[5] = yaw_rate_dot
-        X_dot[6] = ((action_steer-steer)/np.abs(action_steer-steer))*0.3
 
         return X_dot
 

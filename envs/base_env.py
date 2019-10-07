@@ -16,7 +16,7 @@ from rllab.misc import logger
 from rllab.spaces import Box
 from aa_simulation.envs.model.model import BrushTireModel, LinearTireModel
 from aa_simulation.envs.renderer import _Renderer
-
+import datetime
 
 _pending_actions=[]
 _action_drop_prob=0.2
@@ -89,7 +89,7 @@ class VehicleEnv(Env):
             
     @property
     def observation_space(self):
-        return Box(low=-np.inf, high=np.inf, shape=(7,))
+        return Box(low=-np.inf, high=np.inf, shape=(6,))
 
 
     @property
@@ -121,13 +121,12 @@ class VehicleEnv(Env):
         return observation
 
 
-    def step(self, action):
+    def step(self, action,max_path_length=np.inf):
         """
         Move one iteration forward in simulation.
         """
         # Place limits on action based on mechanical constraints
         global _pending_actions, _old_action,_pending_actions,_old_time
-
 
 
         # mu,sigma = 0.002,0.002
@@ -147,22 +146,30 @@ class VehicleEnv(Env):
         #     _old_action=action
         #     _pending_actions.remove(_pending_actions[0])
 
-
+        done = False
 
         action_min = [VehicleEnv._MIN_VELOCITY, -VehicleEnv._MAX_STEER_ANGLE]
         action_max = [VehicleEnv._MAX_VELOCITY, VehicleEnv._MAX_STEER_ANGLE]
         action = np.clip(action, a_min=action_min, a_max=action_max)
 
         self._action = action
+        current_t = datetime.datetime.now()
         nextstate = self._model.state_transition(self._state, action,
                 self._dt)
+        finish_t = datetime.datetime.now()
+        # print("Time taken: {}".format(finish_t-current_t))
+        prev_state = self._state
         self._state = nextstate
-        reward, info = self.get_reward(nextstate, action)
+        reward, info = self.get_reward(nextstate, action,prev_state=prev_state)
+        if(nextstate[0]>=max_path_length):
+            done= True
+            #print("Done dona dona")
+        
         observation = self.state_to_observation(nextstate) 
         # np.random.seed(np.random.randint(0,10))
-        noise =  np.random.multivariate_normal(np.zeros(observation.shape),0.05*np.eye(observation.shape[0],observation.shape[0]))
+        #noise =  np.random.multivariate_normal(np.zeros(observation.shape),0.05*np.eye(observation.shape[0],observation.shape[0]))
         # observation+=noise
-        return Step(observation=observation, reward=reward, done=False,
+        return Step(observation=observation, reward=reward, done=done,
                 dist=info['dist'], vel=info['vel'], kappa=self._model.kappa)
 
 
@@ -207,7 +214,7 @@ class VehicleEnv(Env):
         raise NotImplementedError
 
 
-    def get_reward(self, state, action):
+    def get_reward(self, state, action,prev_state=None):
         """
         Reward function definition. Returns reward, a scalar, and info, a
         dictionary that must contain the keys 'dist' (closest distance to
