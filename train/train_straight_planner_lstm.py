@@ -163,7 +163,7 @@ def run_task(vv, log_dir=None, exp_name=None):
             baseline=baseline,
             batch_size=600,
             max_path_length=env.horizon,
-            n_itr=2000,
+            n_itr=10000,
             discount=0.99,
             step_size=trpo_stepsize,
             plot=False,
@@ -243,15 +243,18 @@ def main():
     # Run each experiment variant
     for vv in vg.variants():
         run_task(vv)
+        break
 
-    # for vv in vg.variants():
-    #     run_experiment_lite(
-    #         stub_method_call=run_task,
-    #         variant=vv,
-    #         n_parallel=4,
-    #         snapshot_mode='last',
-    #         seed=vv['seed']
-    #     )
+#    for vv in vg.variants():
+#         run_experiment_lite(
+#             stub_method_call=run_task,
+#             variant=vv,
+#             use_gpu=True,
+#             n_parallel=4,
+#             snapshot_mode='last',
+#             seed=vv['seed']
+#         )
+#         break
 
 
 if __name__ == '__main__':

@@ -13,6 +13,7 @@ import sys
 
 import joblib
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 import numpy as np
 import sys
 sys.path.append('/home/harshit/work/rllab')
@@ -101,11 +102,13 @@ def plot_distribution(data, name, units):
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('file', type=str,
+    parser.add_argument('--file', type=str,
                         help='Path to the snapshot file')
     parser.add_argument('--max_path_length', type=int, default=5,
                         help='Max length of rollout')
     parser.add_argument('--seed', type=int, default=9, help='Random seed')
+    parser.add_argument('--plot', type=str,
+                        help='Path to the snapshot file')
     parser.add_argument('--speedup', type=float, default=100000,
                         help='Speedup')
     parser.add_argument('--skip', type=int, default=0,
@@ -129,7 +132,6 @@ def parse_arguments():
     parser.set_defaults(profile_code=False)
     args = parser.parse_args()
     return args
-
 
 
 def rollout_fixed_distance(env, agent, max_path_length=np.inf, animated=False, speedup=1,
@@ -181,6 +183,7 @@ def main():
     global means_vel
 
     args = parse_arguments()
+    print(args)
 #     profiler = cProfile.Profile()
     data = joblib.load(args.file)
     skip = args.skip
@@ -252,14 +255,16 @@ def main():
     
     print(dt_mean_steer)
     print(dt_std_steer)
-    plt.figure()
+    #plt.figure()
     # plt.subplot(211)
     # plt.plot(dt_list, dt_mean_steer, 'k')
     # plt.subplot(212)
     plt.xlabel('dt')
     plt.ylabel('Steer std_dev')  
     plt.plot(dt_list, dt_std_steer, 'k')
-    plt.show()
+    plt.savefig('plots/dt_vs_steer_'+args.plot+'.jpg')
+    
+    #plt.show()
 
 
     plt.figure()
@@ -269,19 +274,21 @@ def main():
     plt.xlabel('dt')
     plt.ylabel('Mean reward')  
     plt.plot(dt_list, dt_mean_reward, 'k')
-    plt.show()
+    plt.savefig('plots/dt_vs_reward_'+args.plot+'.jpg')
+    #plt.show()
 
 
-    plt.figure()
+    #plt.figure()
     # plt.subplot(211)
     # plt.plot(dt_list, dt_mean_steer, 'k')
     # plt.subplot(212)
     plt.xlabel('dt')
     plt.ylabel('Mean abs vel error')  
     plt.plot(dt_list, dt_mean_abs_vel, 'k')
-    plt.show()
+    plt.savefig('plots/dt_vs_abs_vel_'+args.plot+'.jpg')
+    #plt.show()
 
-
+    np.savez('plots/array_data_'+args.plot,steer = dt_std_steer,rewards = dt_mean_reward, vel_err = dt_mean_abs_vel,dt = dt_list)
     # Print statistics over multiple runs
     if not args.profile_code:
         print()

@@ -14,7 +14,10 @@ import lasagne.init as LI
 import lasagne.layers as L
 import lasagne.nonlinearities as LN
 import numpy as np
-
+import theano
+#import theano.misc.pycuda_utils
+import theano.sandbox.cuda
+theano.sandbox.cuda.use('gpu0')
 from rllab.algos.trpo import TRPO
 from rllab.core.lasagne_layers import ParamLayer
 from rllab.core.lasagne_powered import LasagnePowered
@@ -26,11 +29,11 @@ from rllab.misc.resolve import load_class
 from rllab.policies.gaussian_mlp_policy import GaussianMLPPolicy
 from sandbox.cpo.algos.safe.cpo import CPO
 from sandbox.cpo.baselines.linear_feature_baseline import LinearFeatureBaseline
-import sandbox.rocky.tf.core.layers as T
+#import sandbox.rocky.tf.core.layers as T
 from aa_simulation.envs.straight.straight_env import StraightEnv
 from aa_simulation.safety_constraints.straight import StraightSafetyConstraint
-from sandbox.rocky.tf.policies.gaussian_lstm_policy import GaussianLSTMPolicy
-from sandbox.rocky.tf.optimizers.conjugate_gradient_optimizer import ConjugateGradientOptimizer, FiniteDifferenceHvp
+#from sandbox.rocky.tf.policies.gaussian_lstm_policy import GaussianLSTMPolicy
+#from sandbox.rocky.tf.optimizers.conjugate_gradient_optimizer import ConjugateGradientOptimizer, FiniteDifferenceHvp
 
 
 # Pre-trained policy and baseline
@@ -157,7 +160,7 @@ def run_task(vv, log_dir=None, exp_name=None):
             baseline=baseline,
             batch_size=600,
             max_path_length=env.horizon,
-            n_itr=2000,
+            n_itr=10000,
             discount=0.99,
             step_size=trpo_stepsize,
             plot=False,
@@ -242,10 +245,12 @@ def main():
         run_experiment_lite(
             stub_method_call=run_task,
             variant=vv,
-            n_parallel=4,
+            n_parallel=1,
+		use_gpu=True,
             snapshot_mode='last',
             seed=vv['seed']
         )
+        break
 
 
 if __name__ == '__main__':
