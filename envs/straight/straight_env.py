@@ -61,7 +61,7 @@ class StraightEnv(VehicleEnv):
         """
         Define the shape of input vector to the neural network.
         """
-        return Box(low=-np.inf, high=np.inf, shape=(4,))
+        return Box(low=-np.inf, high=np.inf, shape=(5,))
 
 
     @property
@@ -78,7 +78,7 @@ class StraightEnv(VehicleEnv):
             # y=0
             # yaw = 0
             yaw = np.random.uniform(-np.pi/3, np.pi/3)
-            self._dt =np.random.uniform(0.01, 0.05)  
+            #self._dt =np.random.uniform(0.01, 0.05)  
             x_dot = np.random.uniform(0, 1.3)
             y_dot = np.random.uniform(-0.6, 0.6)
             yaw_dot = np.random.uniform(-2.0, 2.0)
@@ -172,7 +172,7 @@ class StraightEnv(VehicleEnv):
         _, y, yaw, x_dot, y_dot, yaw_dot = state
         yaw = normalize_angle(yaw)
         
-        return np.array([y, yaw, x_dot,self._dt])
+        #return np.array([y, yaw, x_dot,self._dt])
         # return np.array([y, yaw, x_dot, y_dot, yaw_dot])
-        # return np.array([y, yaw, x_dot, y_dot, yaw_dot,s])
+        return np.array([y, yaw, x_dot, y_dot, yaw_dot])
 

@@ -255,7 +255,7 @@ def main():
     
     print(dt_mean_steer)
     print(dt_std_steer)
-    #plt.figure()
+    plt.figure()
     # plt.subplot(211)
     # plt.plot(dt_list, dt_mean_steer, 'k')
     # plt.subplot(212)
@@ -278,7 +278,7 @@ def main():
     #plt.show()
 
 
-    #plt.figure()
+    plt.figure()
     # plt.subplot(211)
     # plt.plot(dt_list, dt_mean_steer, 'k')
     # plt.subplot(212)
